@@ -3,6 +3,7 @@ import date
 import itertools
 import re
 import os
+import sys
 
 def to_days(dt_str):
     if dt_str == "": return ""

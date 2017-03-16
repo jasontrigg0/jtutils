@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import date
+import jtutils.date
 import itertools
 import re
 import os
@@ -90,7 +90,11 @@ def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = itertools.tee(iterable)
     next(b, None)
-    return itertools.izip(a, b)
+    if (sys.version_info > (3,0)):
+        zip_fn = zip
+    else:
+        zip_fn = itertools.izip(a,b)
+    return zip_fn(a,b)
 
 def threewise(iterable):
     """s -> (None, s0, s1), (s0, s1, s2), ... (sn-1, sn, None)
@@ -105,7 +109,12 @@ def threewise(iterable):
         for i in l: yield i
         yield val
     next(c,None)
-    for _xa, _xb, _xc in itertools.izip(prepend(None,a), b, postpend(None,c)):
+    if (sys.version_info > (3, 0)):
+        zip_fn = zip
+    else:
+        zip_fn = itertools.izip
+
+    for _xa, _xb, _xc in zip_fn(prepend(None,a), b, postpend(None,c)):
         yield (_xa, _xb, _xc)
 
 def terminal_size():

@@ -13,6 +13,37 @@ def to_years(dt_str):
     if dt_str == "": return ""
     return date.Date(dt_str).to_years()
 
+class GroupBy:
+    def __init__(self, list_of_inputs, key, value=None):
+        self.key = key
+        if (not value):
+            self.value = lambda x: x
+        else:
+            self.value = value
+        self.dictionary = {}
+        self.update(list_of_inputs)
+    def update(self, l):
+        for x in l:
+            k = self.key(x)
+            v = self.value(x)
+            self.dictionary[k] = self[k] + [v]
+        return self
+    def __setitem__(self, key, value):
+        raise Exception("Can't set counter items")
+    def __getitem__(self, x):
+        if x in self.dictionary:
+            return self.dictionary[x]
+        else:
+            return []
+    def __str__(self):
+        return self.dictionary.__str__()
+    def keys(self):
+        return self.dictionary.keys()
+    def values(self):
+        return self.dictionary.values()
+    def items(self):
+        return self.dictionary.items()
+
 def is_int(var):
     return isinstance( var, ( int, long ) )
 

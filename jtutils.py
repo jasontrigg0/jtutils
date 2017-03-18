@@ -4,6 +4,7 @@ import itertools
 import re
 import os
 import sys
+import io
 
 def to_days(dt_str):
     if dt_str == "": return ""
@@ -45,7 +46,10 @@ class GroupBy:
         return self.dictionary.items()
 
 def is_int(var):
-    return isinstance( var, ( int, long ) )
+    if sys.version_info[0] >= 3:
+        return isinstance(var, int)
+    else:
+        return isinstance( var, ( int, long ) )
 
 def str_is_int(var):
     # if not isinstance(var, str) and np.isnan(var):
@@ -73,7 +77,14 @@ def rand():
     return str(round(random.random(),4))
 
 def utf8_string(s):
-    if isinstance(s, str):
+    if sys.version_info[0] >= 3:
+        #http://stackoverflow.com/questions/34869889/what-is-the-proper-way-to-determine-if-an-object-is-a-bytes-like-object-in-pytho
+        if isinstance(s,str):
+            return s
+        else:
+            return s.decode()
+        return str(s, "utf-8")
+    elif isinstance(s, str):
         return s.decode("utf-8","ignore").encode("utf-8","ignore")
     elif isinstance(s, unicode):
         return s.encode("utf-8","ignore")
@@ -90,7 +101,7 @@ def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = itertools.tee(iterable)
     next(b, None)
-    if (sys.version_info > (3,0)):
+    if (sys.version_info[0] >= 3):
         zip_fn = zip
     else:
         zip_fn = itertools.izip(a,b)
@@ -109,7 +120,7 @@ def threewise(iterable):
         for i in l: yield i
         yield val
     next(c,None)
-    if (sys.version_info > (3, 0)):
+    if (sys.version_info[0] >= 3):
         zip_fn = zip
     else:
         zip_fn = itertools.izip
@@ -149,30 +160,62 @@ def lines2less(lines):
     first_rows = list(itertools.islice(lines,0,MAX_CAT_ROWS))
     wide = any(len(l) > terminal_cols for l in first_rows)
 
-    lesspager = None
     use_less = False
     if has_term and (wide or len(first_rows) == MAX_CAT_ROWS):
         use_less = True
-        lesspager = LessPager()
 
-    for l in itertools.chain(first_rows, lines):
-        if use_less:
-            lesspager.write(l + "\n")
-        else:
-            sys.stdout.write(l + "\n")
+    lines = itertools.chain(first_rows, lines)
+    if sys.version_info[0] >= 3:
+        map_fn = map
+    else:
+        map_fn = itertools.imap
+    lines = map_fn(lambda x: x + '\n', lines)
+
+    if use_less:
+        lesspager(lines)
+    else:
+        for l in lines:
+            sys.stdout.write(l)
 
 
-class LessPager(object):
+def lesspager(lines):
     """
     Use for streaming writes to a less process
     Taken from pydoc.pipepager:
     /usr/lib/python2.7/pydoc.py
+    and
+    /usr/lib/python3.5/pydoc.py
     """
-    def __init__(self):
-        self.proc = os.popen("less -S", 'w')
-    def write(self, text):
+    cmd = "less -S"
+    if sys.version_info[0] >= 3:
+        """Page through text by feeding it to another program."""
+        import subprocess
+        proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE)
         try:
-            self.proc.write(text)
+            with io.TextIOWrapper(proc.stdin, errors='backslashreplace') as pipe:
+                try:
+                    for l in lines:
+                        pipe.write(l)
+                except KeyboardInterrupt:
+                    # We've hereby abandoned whatever text hasn't been written,
+                    # but the pager is still in control of the terminal.
+                    pass
+        except OSError:
+            pass # Ignore broken pipes caused by quitting the pager program.
+        while True:
+            try:
+                proc.wait()
+                break
+            except KeyboardInterrupt:
+                # Ignore ctl-c like the pager itself does.  Otherwise the pager is
+                # left running and the terminal is in raw mode and unusable.
+                pass
+
+    else:
+        proc = os.popen(cmd, 'w')
+        try:
+            for l in lines:
+                proc.write(l)
         except IOError:
-            self.proc.close()
+            proc.close()
             sys.exit()

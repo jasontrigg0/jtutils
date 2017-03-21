@@ -21,6 +21,22 @@ def open_py2_py3(f):
             f_in = open(f)
     return f_in
 
+def pd_read_csv(f, **args):
+    #In python3 pd.read_csv is breaking on utf8 encoding errors
+    #Solving this by reading the file into StringIO first and
+    #then passing that into the pd.read_csv() method
+    import pandas as pd
+    import sys
+    if sys.version_info[0] < 3:
+        from StringIO import StringIO
+    else:
+        from io import StringIO
+
+    f = StringIO(open_py2_py3(f).read())
+    return pd.read_csv(f, **args)
+
+
+
 def to_days(dt_str):
     if dt_str == "": return ""
     return date.Date(dt_str).to_days()

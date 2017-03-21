@@ -6,6 +6,20 @@ import re
 import os
 import sys
 import io
+import codecs
+
+def open_py2_py3(f):
+    if f == sys.stdin:
+        if sys.version_info[0] >= 3:
+            f_in = codecs.getreader('utf8')(sys.stdin.detach(), errors='ignore')
+        else:
+            f_in = sys.stdin
+    else:
+        if sys.version_info[0] >= 3:
+            f_in = open(f, errors='ignore')
+        else:
+            f_in = open(f)
+    return f_in
 
 def to_days(dt_str):
     if dt_str == "": return ""

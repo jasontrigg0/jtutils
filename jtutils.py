@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-import jtutils.date
+from __future__ import absolute_import
+from . import date
 import itertools
 import re
 import os

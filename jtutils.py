@@ -7,6 +7,8 @@ import os
 import sys
 import io
 import codecs
+import requests
+import bs4
 
 def open_py2_py3(f):
     if f == sys.stdin:
@@ -43,6 +45,17 @@ def df_to_bytestrings(df):
         #convert the columns as well
         df.columns = [to_bytestring(c) for c in df.columns]
         return df.applymap(to_bytestring)
+
+def to_bytestring(obj):
+    """avoid encoding errors when writing!"""
+    if isinstance(obj, str):
+        return unicode(obj, errors="ignore").encode("ascii","ignore")
+    elif isinstance(obj, unicode):
+        return obj.encode("ascii","ignore")
+    elif isinstance(obj, list):
+        return str([to_bytestring(e) for e in obj])
+    else:
+        return obj
 
 def to_days(dt_str):
     if dt_str == "": return ""

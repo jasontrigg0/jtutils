@@ -35,7 +35,14 @@ def pd_read_csv(f, **args):
     f = StringIO(open_py2_py3(f).read())
     return pd.read_csv(f, **args)
 
-
+def df_to_bytestrings(df):
+    #avoid bug where pandas applymap() turns length 0 dataframe into a series
+    if len(df) == 0:
+        return df
+    else:
+        #convert the columns as well
+        df.columns = [to_bytestring(c) for c in df.columns]
+        return df.applymap(to_bytestring)
 
 def to_days(dt_str):
     if dt_str == "": return ""
@@ -256,3 +263,47 @@ def argmax(l,f=None):
     if f:
         l = [f(i) for i in l]
     return max(enumerate(l), key=lambda x:x[1])[0]
+
+#website functions
+def html_to_soup(html):
+    if isinstance(html, str):
+        html = html.decode("utf-8","ignore")
+    try:
+        soup = bs4.BeautifulSoup(html, "lxml")
+    except:
+        soup = bs4.BeautifulSoup(html, "html.parser")
+    return soup
+
+def url_to_soup(url, js=False, encoding=None):
+    html = _get_webpage(url, js, encoding)
+    return html_to_soup(html)
+
+def _get_webpage(url, js=False, encoding = None):
+    if js:
+        return _get_webpage_with_js(url)
+    else:
+        return _get_webpage_static(url, encoding)
+
+def _get_webpage_with_js(url):
+    with open_driver() as driver:
+        driver.get(url)
+        wait_until_stable(driver)
+        return driver.page_source
+
+def _get_webpage_static(url, encoding=None):
+    if not url.startswith("http"):
+        url = "http://" + url
+    headers = {'User-agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:40.0) Gecko/20100101 Firefox/40.0'}
+    s = requests.Session()
+    RETRIES = 5
+    for i in range(RETRIES):
+        try:
+            out = s.get(url, headers=headers, timeout=(10,10))
+            if encoding:
+                out.encoding = encoding
+            return out.text
+        except (requests.exceptions.RequestException, requests.Timeout, requests.exceptions.ReadTimeout) as e:
+            if i < (RETRIES - 1):
+                continue
+            else:
+                raise e

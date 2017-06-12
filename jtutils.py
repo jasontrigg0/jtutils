@@ -320,3 +320,11 @@ def _get_webpage_static(url, encoding=None):
                 continue
             else:
                 raise e
+
+
+def run(cmd):
+    import subprocess
+    pipes = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    stdout, stderr = pipes.communicate()
+    return_code = pipes.returncode
+    return stdout, stderr, return_code

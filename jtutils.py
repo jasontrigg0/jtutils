@@ -66,6 +66,11 @@ def to_years(dt_str):
     return date.Date(dt_str).to_years()
 
 class GroupBy:
+    """
+    Example usage (print all triple anagrams with at least 9 letters):
+    >>> less /usr/share/dict/words | pawk -b 'g = GroupBy({},key=lambda x: tuple(sorted(Counter(x).items())))' -p 'g.update([l])' -e 'print [v for v in g.values() if len(v) > 2 and len(v[0]) > 8]'
+    [['dissenter', 'residents', 'tiredness'], ['countries', 'cretinous', 'neurotics'], ['earthling', 'haltering', 'lathering'], ['beastlier', 'bleariest', 'liberates'], ['reprising', 'respiring', 'springier'], ['cratering', 'retracing', 'terracing'], ['gnarliest', 'integrals', 'triangles'], ['estranges', 'greatness', 'sergeants'], ['cattiness', 'scantiest', 'tacitness'], ['enlisting', 'listening', 'tinseling'], ["magneto's", "megaton's", "montage's"], ['auctioned', 'cautioned', 'education'], ["respect's", "scepter's", "specter's"], ["cheater's", "hectare's", "teacher's"], ['emigrants', 'mastering', 'streaming']]
+    """
     def __init__(self, list_of_inputs, key, value=None):
         self.key = key
         if (not value):
@@ -101,6 +106,9 @@ def is_int(var):
         return isinstance(var, int)
     else:
         return isinstance( var, ( int, long ) )
+
+def is_float(var):
+    return isinstance(var, float)
 
 def str_is_int(var):
     # if not isinstance(var, str) and np.isnan(var):
@@ -287,15 +295,15 @@ def html_to_soup(html):
         soup = bs4.BeautifulSoup(html, "html.parser")
     return soup
 
-def url_to_soup(url, js=False, encoding=None):
-    html = _get_webpage(url, js, encoding)
+def url_to_soup(url, js=False, encoding=None, cookies={}, headers={}, params=()):
+    html = _get_webpage(url, js, encoding, cookies, headers, params)
     return html_to_soup(html)
 
-def _get_webpage(url, js=False, encoding = None):
+def _get_webpage(url, js=False, encoding = None, cookies={}, headers={}, params=()):
     if js:
         return _get_webpage_with_js(url)
     else:
-        return _get_webpage_static(url, encoding)
+        return _get_webpage_static(url, encoding, cookies, headers, params)
 
 def _get_webpage_with_js(url):
     with open_driver() as driver:
@@ -303,15 +311,19 @@ def _get_webpage_with_js(url):
         wait_until_stable(driver)
         return driver.page_source
 
-def _get_webpage_static(url, encoding=None):
+def _get_webpage_static(url, encoding=None, cookies={}, headers={}, params=()):
+    if not isinstance(cookies,dict) or not isinstance(headers,dict):
+        raise Exception("Invalid type for cookies or headers! Should be dict: {cookies},{headers}".format(**vars()))
+    if not isinstance(params,tuple):
+        raise Exception("Invalid type for params! Should be tuple: {params}".format(**vars()))
     if not url.startswith("http"):
         url = "http://" + url
-    headers = {'User-agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:40.0) Gecko/20100101 Firefox/40.0'}
+    headers.update({'User-agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:40.0) Gecko/20100101 Firefox/40.0'})
     s = requests.Session()
     RETRIES = 5
     for i in range(RETRIES):
         try:
-            out = s.get(url, headers=headers, timeout=(10,10))
+            out = s.get(url, headers=headers, params=params, cookies=cookies, timeout=(10,10))
             if encoding:
                 out.encoding = encoding
             return out.text
@@ -320,6 +332,56 @@ def _get_webpage_static(url, encoding=None):
                 continue
             else:
                 raise e
+
+#a wrapper for argparse to allow either
+#commandline usage or calling the function passing in a cfg
+def process_cfg(input_cfg, parser, internal_args):
+    def _cfgToArgs(cfg):
+        out = []
+        for k,v in cfg.items(): #eg "file", "myfile.avi"
+            #add "--file", "myfile.avi" to the end of out
+            out.append("--"+k)
+            if v is True:
+                continue
+            else:
+                out.append(str(v))
+        return out
+
+    args = {}
+    command_line_cfg = vars(parser.parse_args())
+    args.update(command_line_cfg)
+
+    args.update(internal_args)
+
+    if input_cfg:
+        invalid_cfg = {k:v for k,v in input_cfg.items() if k not in internal_args and k not in args}
+        if invalid_cfg:
+            raise Exception("Invalid cfg arguments! {invalid_cfg}".format(**vars()))
+        internal_cfg = {k:v for k,v in input_cfg.items() if k in internal_args or k in args}
+        args.update(internal_cfg)
+
+    # if input_cfg:
+    #     args = {}
+    #     external_cfg = {k:v for k,v in input_cfg.items() if k not in internal_args}
+    #     args = vars(parser.parse_args(_cfgToArgs(external_cfg)))
+    #     internal_cfg = {k:v for k,v in input_cfg.items() if k in internal_args}
+    #     args.update(internal_args)
+    #     args.update(internal_cfg)
+    #     args.update(command_line_cfg)
+    # else:
+    #     args = vars(parser.parse_args())
+    #     args.update(internal_args)
+    return args
+
+class CfgGen():
+    def CfgGen(self):
+        self.internal_args = {}
+    def set_parser(parser):
+        self.parser = parser
+    def set_internal_args(internal_args):
+        self.internal_args = internal_args
+    def get_cfg(self, input_cfg=None):
+        pass
 
 
 def run(cmd):

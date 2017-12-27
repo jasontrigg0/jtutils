@@ -37,25 +37,27 @@ def pd_read_csv(f, **args):
     f = StringIO(open_py2_py3(f).read())
     return pd.read_csv(f, **args)
 
-def df_to_bytestrings(df):
-    #avoid bug where pandas applymap() turns length 0 dataframe into a series
-    if len(df) == 0:
-        return df
-    else:
-        #convert the columns as well
-        df.columns = [to_bytestring(c) for c in df.columns]
-        return df.applymap(to_bytestring)
+#trying to deprecate / stop using this function
+# def df_to_bytestrings(df):
+#     #avoid bug where pandas applymap() turns length 0 dataframe into a series
+#     if len(df) == 0:
+#         return df
+#     else:
+#         #convert the columns as well
+#         df.columns = [to_bytestring(c) for c in df.columns]
+#         return df.applymap(to_bytestring)
 
-def to_bytestring(obj):
-    """avoid encoding errors when writing!"""
-    if isinstance(obj, str):
-        return unicode(obj, errors="ignore").encode("ascii","ignore")
-    elif isinstance(obj, unicode):
-        return obj.encode("ascii","ignore")
-    elif isinstance(obj, list):
-        return str([to_bytestring(e) for e in obj])
-    else:
-        return obj
+#trying to deprecate / stop using this function
+# def to_bytestring(obj):
+#     """avoid encoding errors when writing!"""
+#     if isinstance(obj, str):
+#         return unicode(obj, errors="ignore").encode("ascii","ignore")
+#     elif isinstance(obj, unicode):
+#         return obj.encode("ascii","ignore")
+#     elif isinstance(obj, list):
+#         return str([to_bytestring(e) for e in obj])
+#     else:
+#         return obj
 
 def to_days(dt_str):
     if dt_str == "": return ""
@@ -64,6 +66,23 @@ def to_days(dt_str):
 def to_years(dt_str):
     if dt_str == "": return ""
     return date.Date(dt_str).to_years()
+
+def to_YYYYMMDD(dt_str):
+    if dt_str == "": return ""
+    return date.Date(dt_str).to_YYYYMMDD()
+
+def days_to_YYYYMMDD(days):
+    return date.Date.from_days(days).to_YYYYMMDD()
+
+def years_to_YYYYMMDD(years):
+    return date.Date.from_years(years).to_YYYYMMDD()
+
+def today_YYYYMMDD():
+    import datetime
+    return datetime.datetime.now().strftime("%Y%m%d")
+
+def date_range(start_YYYYMMDD, end_YYYYMMDD):
+    return date.Date.date_range(start_YYYYMMDD, end_YYYYMMDD)
 
 class GroupBy:
     """
@@ -135,20 +154,20 @@ def rand():
     import random
     return str(round(random.random(),4))
 
-def utf8_string(s):
-    if sys.version_info[0] >= 3:
-        #http://stackoverflow.com/questions/34869889/what-is-the-proper-way-to-determine-if-an-object-is-a-bytes-like-object-in-pytho
-        if isinstance(s,str):
-            return s
-        else:
-            return s.decode()
-        return str(s, "utf-8")
-    elif isinstance(s, str):
-        return s.decode("utf-8","ignore").encode("utf-8","ignore")
-    elif isinstance(s, unicode):
-        return s.encode("utf-8","ignore")
-    else:
-        raise
+# def utf8_string(s):
+#     if sys.version_info[0] >= 3:
+#         #http://stackoverflow.com/questions/34869889/what-is-the-proper-way-to-determine-if-an-object-is-a-bytes-like-object-in-pytho
+#         if isinstance(s,str):
+#             return s
+#         else:
+#             return s.decode()
+#         return str(s, "utf-8")
+#     elif isinstance(s, str):
+#         return s.decode("utf-8","ignore").encode("utf-8","ignore")
+#     elif isinstance(s, unicode):
+#         return s.encode("utf-8","ignore")
+#     else:
+#         raise
 
 def fix_broken_pipe():
     #following two lines solve 'Broken pipe' error when piping
@@ -287,8 +306,9 @@ def argmax(l,f=None):
 
 #website functions
 def html_to_soup(html):
-    if isinstance(html, str):
-        html = html.decode("utf-8","ignore")
+    #is this needed?
+    # if sys.version_info[0] < 3 and isinstance(html, str):
+    #     html = html.decode("utf-8","ignore")
     try:
         soup = bs4.BeautifulSoup(html, "lxml")
     except:
@@ -336,6 +356,8 @@ def _get_webpage_static(url, encoding=None, cookies={}, headers={}, params=()):
 #a wrapper for argparse to allow either
 #commandline usage or calling the function passing in a cfg
 def process_cfg(input_cfg, parser, internal_args):
+    #pass in input_cfg to use internally
+    #or pass in parser to use with command line arguments
     def _cfgToArgs(cfg):
         out = []
         for k,v in cfg.items(): #eg "file", "myfile.avi"
@@ -348,7 +370,14 @@ def process_cfg(input_cfg, parser, internal_args):
         return out
 
     args = {}
-    command_line_cfg = vars(parser.parse_args())
+
+    if input_cfg is None:
+        command_line_cfg = vars(parser.parse_args())
+    else:
+        #using input_cfg arguments: only populate
+        #command_line_cfg with parser defaults
+        command_line_cfg = vars(parser.parse_args([]))
+
     args.update(command_line_cfg)
 
     args.update(internal_args)
@@ -389,4 +418,6 @@ def run(cmd):
     pipes = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     stdout, stderr = pipes.communicate()
     return_code = pipes.returncode
-    return stdout, stderr, return_code
+    if return_code != 0:
+        raise Exception("Command failed! " + "\n" + str(stderr) + "\n" + str(cmd))
+    return stdout.decode("utf-8"), stderr.decode("utf-8"), return_code

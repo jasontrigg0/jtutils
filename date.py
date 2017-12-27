@@ -31,9 +31,9 @@ class Date(object):
     """
     Date object contains a datetime object and manipulates it
     """
-    def __init__(self, dt_str):
-        dt_str = str(dt_str)
-        self.dt_obj = self.date_string_to_datetime(dt_str)
+    def __init__(self, dt=None):
+        if dt:
+            self.dt_obj = self.date_string_to_datetime(str(dt))
     @classmethod
     def parse_month(cls, month_str):
         try:
@@ -41,15 +41,51 @@ class Date(object):
         except KeyError:
             raise Exception("Invalid month string: " + month_str)
     @classmethod
+    def date_range(cls, dt_str1, dt_str2):
+        out = []
+        start = cls(dt_str1)
+        end = start
+        while end.to_YYYYMMDD() < dt_str2:
+            out.append(end.to_YYYYMMDD())
+            end.dt_obj = end.dt_obj + datetime.timedelta(1)
+        return out
+    @classmethod
     def date_diff(cls, dt_str1, dt_str2):
         return cls(dt_str1).to_years() - cls(dt_str2).to_years()
     def to_YYYYMMDD(self):
         return self.dt_obj.strftime('%Y%m%d')
+    @classmethod
+    def from_unix(cls, dt_str):
+        #unix timestamp
+        #assumes the timestamp is relatively new
+        out = cls()
+        out.dt_obj = datetime.datetime.fromtimestamp(int(dt_str))
+        return out
+    @classmethod
+    def from_days(cls, days):
+        epoch = datetime.datetime.utcfromtimestamp(0)
+        out = cls()
+        out.dt_obj = (epoch + datetime.timedelta(days))
+        return out
+    @classmethod
+    def from_years(cls, years_float):
+        if dt_float > 10000:
+            #unix timestamp?
+            raise Exception("Invalid float. Should represent a number of years")
+        remainder = years_float % 1
+        year = round(years_float - remainder)
+        stars = soup.select("div.ratingsSummary span.bigRating.h1")[0].text.strip()
+        days = round((remainder * cls.days_in_year(year)) + 1)
+        self.dt_obj = datetime.datetime(year, 1, 1) + datetime.timedelta(days - 1)
+    @classmethod
+    def days_in_year(cls, year):
+        return (datetime.datetime(year+1,1,1) - datetime.datetime(year,1,1)).days
     def to_years(self):
         tt = self.dt_obj.timetuple()
         #use (tm_yday - 1)
         #or else 20131231 -> year=2013, day=365 --> return 2014.0
-        return tt.tm_year + (tt.tm_yday - 1) / 365.
+        year = tt.tm_year
+        return tt.tm_year + (tt.tm_yday - 1) / float(self.days_in_year(year))
     def to_days(self):
         import dateutil.parser
         epoch = datetime.datetime.utcfromtimestamp(0)
@@ -81,6 +117,16 @@ class Date(object):
             MM = int(dt_str[4:6])
             DD = int(dt_str[6:8])
             return datetime.datetime(YYYY, MM, DD)
+
+        #datetime __str__ format: '2017-12-07 15:14:16.559355'
+        regex = "(\d{4})-(\d{2})-(\d{2}) \d{2}:\d{2}:\d{2}\.?\d?"
+        if re.findall(regex,dt_str):
+            YYYY, MM, DD = re.findall(regex,dt_str)[0]
+            YYYY = int(YYYY)
+            MM = int(MM)
+            DD = int(DD)
+            if 1 <= MM <= 12 and 1 <= DD <= 31:
+                return datetime.datetime(YYYY, MM, DD)
 
         #2014-05-13
         if len(dt_str.split("-")) == 3:

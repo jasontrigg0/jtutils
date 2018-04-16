@@ -9,6 +9,12 @@ import io
 import codecs
 import requests
 import bs4
+import six
+try:
+    from shlex import quote as cmd_quote #since 3.3
+except ImportError:
+    from pipes import quote as cmd_quote
+
 
 def open_py2_py3(f):
     if f == sys.stdin:
@@ -28,13 +34,7 @@ def pd_read_csv(f, **args):
     #Solving this by reading the file into StringIO first and
     #then passing that into the pd.read_csv() method
     import pandas as pd
-    import sys
-    if sys.version_info[0] < 3:
-        from StringIO import StringIO
-    else:
-        from io import StringIO
-
-    f = StringIO(open_py2_py3(f).read())
+    f = six.StringIO(open_py2_py3(f).read())
     return pd.read_csv(f, **args)
 
 #trying to deprecate / stop using this function
@@ -121,10 +121,7 @@ class GroupBy:
         return self.dictionary.items()
 
 def is_int(var):
-    if sys.version_info[0] >= 3:
-        return isinstance(var, int)
-    else:
-        return isinstance( var, ( int, long ) )
+    return isinstance(var, six.integer_types)
 
 def is_float(var):
     return isinstance(var, float)
@@ -154,21 +151,6 @@ def rand():
     import random
     return str(round(random.random(),4))
 
-# def utf8_string(s):
-#     if sys.version_info[0] >= 3:
-#         #http://stackoverflow.com/questions/34869889/what-is-the-proper-way-to-determine-if-an-object-is-a-bytes-like-object-in-pytho
-#         if isinstance(s,str):
-#             return s
-#         else:
-#             return s.decode()
-#         return str(s, "utf-8")
-#     elif isinstance(s, str):
-#         return s.decode("utf-8","ignore").encode("utf-8","ignore")
-#     elif isinstance(s, unicode):
-#         return s.encode("utf-8","ignore")
-#     else:
-#         raise
-
 def fix_broken_pipe():
     #following two lines solve 'Broken pipe' error when piping
     #script output into head
@@ -179,11 +161,7 @@ def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = itertools.tee(iterable)
     next(b, None)
-    if (sys.version_info[0] >= 3):
-        zip_fn = zip
-    else:
-        zip_fn = itertools.izip(a,b)
-    return zip_fn(a,b)
+    return six.moves.zip(a,b)
 
 def threewise(iterable):
     """s -> (None, s0, s1), (s0, s1, s2), ... (sn-1, sn, None)
@@ -198,12 +176,8 @@ def threewise(iterable):
         for i in l: yield i
         yield val
     next(c,None)
-    if (sys.version_info[0] >= 3):
-        zip_fn = zip
-    else:
-        zip_fn = itertools.izip
 
-    for _xa, _xb, _xc in zip_fn(prepend(None,a), b, postpend(None,c)):
+    for _xa, _xb, _xc in six.moves.zip(prepend(None,a), b, postpend(None,c)):
         yield (_xa, _xb, _xc)
 
 def terminal_size():
@@ -243,11 +217,7 @@ def lines2less(lines):
         use_less = True
 
     lines = itertools.chain(first_rows, lines)
-    if sys.version_info[0] >= 3:
-        map_fn = map
-    else:
-        map_fn = itertools.imap
-    lines = map_fn(lambda x: x + '\n', lines)
+    lines = six.moves.map(lambda x: x + '\n', lines)
 
     if use_less:
         lesspager(lines)
@@ -306,9 +276,6 @@ def argmax(l,f=None):
 
 #website functions
 def html_to_soup(html):
-    #is this needed?
-    # if sys.version_info[0] < 3 and isinstance(html, str):
-    #     html = html.decode("utf-8","ignore")
     try:
         soup = bs4.BeautifulSoup(html, "lxml")
     except:
@@ -388,18 +355,6 @@ def process_cfg(input_cfg, parser, internal_args):
             raise Exception("Invalid cfg arguments! {invalid_cfg}".format(**vars()))
         internal_cfg = {k:v for k,v in input_cfg.items() if k in internal_args or k in args}
         args.update(internal_cfg)
-
-    # if input_cfg:
-    #     args = {}
-    #     external_cfg = {k:v for k,v in input_cfg.items() if k not in internal_args}
-    #     args = vars(parser.parse_args(_cfgToArgs(external_cfg)))
-    #     internal_cfg = {k:v for k,v in input_cfg.items() if k in internal_args}
-    #     args.update(internal_args)
-    #     args.update(internal_cfg)
-    #     args.update(command_line_cfg)
-    # else:
-    #     args = vars(parser.parse_args())
-    #     args.update(internal_args)
     return args
 
 class CfgGen():
@@ -412,12 +367,25 @@ class CfgGen():
     def get_cfg(self, input_cfg=None):
         pass
 
+class ShellCommandException(Exception):
+    pass
 
-def run(cmd):
+def bash_quote(text):
+    quoted = cmd_quote(text)
+    if quoted[0] == "'" and quoted[-1] == "'":
+        return quoted
+    else:
+        return "'" + quoted + "'"
+
+def run(cmd,error=True):
     import subprocess
     pipes = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     stdout, stderr = pipes.communicate()
     return_code = pipes.returncode
-    if return_code != 0:
-        raise Exception("Command failed! " + "\n" + str(stderr) + "\n" + str(cmd))
-    return stdout.decode("utf-8"), stderr.decode("utf-8"), return_code
+    if return_code != 0 and error:
+        raise ShellCommandException("Command failed! " + "\n" + str(stderr) + "\n" + str(cmd))
+    if sys.version_info[0] >= 3:
+        return stdout.decode("utf-8","ignore"), stderr.decode("utf-8","ignore"), return_code
+    else:
+        #does this work with python2?
+        return stdout.decode("utf-8"), stderr.decode("utf-8"), return_code

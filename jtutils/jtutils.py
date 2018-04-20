@@ -377,6 +377,16 @@ def bash_quote(text):
     else:
         return "'" + quoted + "'"
 
+def y_n_input(message):
+    out = six.moves.input(message)
+    while True:
+        if out.lower() == "y":
+            return True
+        elif out.lower() == "n":
+            return False
+        else:
+            out = six.moves.input("Please input y or n" + '\n')
+
 def run(cmd,error=True):
     import subprocess
     pipes = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)

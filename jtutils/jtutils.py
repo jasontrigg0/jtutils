@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 from __future__ import absolute_import
 from . import date
+import selenium.webdriver
+from contextlib import contextmanager
 import itertools
 import re
 import os
 import sys
 import io
 import codecs
-import requests
-import bs4
 import six
 try:
     from shlex import quote as cmd_quote #since 3.3
@@ -106,9 +106,13 @@ class GroupBy:
         return self
     def __setitem__(self, key, value):
         raise Exception("Can't set counter items")
+    def __contains__(self, x):
+        k = self.key(x)
+        return k in self.dictionary
     def __getitem__(self, x):
-        if x in self.dictionary:
-            return self.dictionary[x]
+        k = self.key(x)
+        if k in self.dictionary:
+            return self.dictionary[k]
         else:
             return []
     def __str__(self):
@@ -276,6 +280,7 @@ def argmax(l,f=None):
 
 #website functions
 def html_to_soup(html):
+    import bs4 #inside function because this import is a little slow
     try:
         soup = bs4.BeautifulSoup(html, "lxml")
     except:
@@ -298,7 +303,41 @@ def _get_webpage_with_js(url):
         wait_until_stable(driver)
         return driver.page_source
 
+def run_js(url, js):
+    with open_driver() as driver:
+        driver.get(url)
+        wait_until_stable(driver)
+        return driver.execute_script(js)
+
+@contextmanager
+def open_driver():
+    #need to close drivers after use or they accumulate
+    chrome_options = selenium.webdriver.chrome.options.Options()
+    chrome_options.add_argument("--headless")
+    d = selenium.webdriver.Chrome(service_log_path=os.path.devnull, chrome_options=chrome_options)
+    try:
+        yield d
+    finally:
+        d.close()
+        d.quit()
+
+def wait_until_stable(driver):
+    import time
+    src_old = driver.page_source
+    print("Waiting")
+    while True:
+        time.sleep(0.5)
+        src = driver.page_source
+        if src != src_old:
+            print("Page still changing")
+            src_old = src
+        else:
+            break
+    return
+
+
 def _get_webpage_static(url, encoding=None, cookies={}, headers={}, params=()):
+    import requests #inside function because this import is a little slow
     if not isinstance(cookies,dict) or not isinstance(headers,dict):
         raise Exception("Invalid type for cookies or headers! Should be dict: {cookies},{headers}".format(**vars()))
     if not isinstance(params,tuple):
